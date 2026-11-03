@@ -1,4 +1,4 @@
-// Cloudflare Worker：把浏览器请求转发到 GlobalRouter，并加上跨域(CORS)头  v2
+// Cloudflare Worker：把浏览器请求转发到 GlobalRouter，并加上跨域(CORS)头  v3
 const UPSTREAM = 'https://api.globalrouter.ai';
 const ALLOW_ORIGIN = 'https://jaxxvasquez15-ui.github.io';
 
@@ -20,6 +20,16 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     try {
       const url = new URL(req.url);
+      // 下载生成好的图片/视频（上游存储没有跨域头时使用）
+      if (url.pathname === '/__fetch') {
+        if ((req.headers.get('Origin') || '') !== ALLOW_ORIGIN) return new Response('forbidden', { status: 403, headers: cors });
+        const target = url.searchParams.get('url') || '';
+        if (!/^https:\/\//.test(target)) return new Response('bad url', { status: 400, headers: cors });
+        const r = await fetch(target);
+        const ct = r.headers.get('content-type') || '';
+        if (!/^(image|video)\//.test(ct) && !/octet-stream/.test(ct)) return new Response('unsupported', { status: 415, headers: cors });
+        return new Response(r.body, { status: r.status, headers: { ...cors, 'Content-Type': ct } });
+      }
       const headers = new Headers();
       for (const k of ['authorization', 'content-type', 'accept']) {
         const v = req.headers.get(k);
