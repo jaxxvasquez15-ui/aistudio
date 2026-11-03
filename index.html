@@ -482,7 +482,7 @@ function findUrl(o){
 async function finishVideo(job,res){
   let url=findUrl(res),blob=null;
   if(url){try{const r=await fetch(url,sameOrigin(url)?{headers:H(false)}:{});if(r.ok)blob=await r.blob()}catch{}
-    if(!blob&&cfg.videoContent&&sameOrigin(url)){const r=await f(u(cfg.videoContent,job.id),{headers:H(false)});if(r.ok)blob=await r.blob()}}
+    if(!blob&&cfg.videoContent){const r=await f(u(cfg.videoContent,job.id),{headers:H(false)});if(r.ok)blob=await r.blob()}}
   else if(cfg.videoContent){
     const r=await f(u(cfg.videoContent,job.id),{headers:H(false)});
     if(!r.ok)throw await apiErr(r);blob=await r.blob();
