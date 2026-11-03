@@ -200,7 +200,8 @@ function bindCfg(){
   $$('[data-cfg]').forEach(el=>{
     const k=el.dataset.cfg; el.value=cfg[k]??'';
     el.addEventListener('input',()=>{cfg[k]=el.value;saveCfg();
-      if(k==='videoPreset'&&PRESETS[el.value]){const p={...PRESETS[el.value]};if(!p.base)delete p.base;Object.assign(cfg,p);saveCfg();syncCfg()}
+      if(k==='base'&&/globalrouter\./.test(el.value)&&cfg.videoPreset!=='globalrouter'){const p={...PRESETS.globalrouter};delete p.base;Object.assign(cfg,p,{videoPreset:'globalrouter'});cfg.base=el.value;saveCfg();syncCfg()}
+      if(k==='videoPreset'&&PRESETS[el.value]){const p={...PRESETS[el.value]};if(!p.base||/globalrouter\./.test(cfg.base||''))delete p.base;Object.assign(cfg,p);saveCfg();syncCfg()}
     });
   });
 }
@@ -221,7 +222,7 @@ const H=json=>{const h={};if(cfg.key)h.Authorization='Bearer '+cfg.key.trim();if
 async function f(url,opt){
   try{return await fetch(url,opt)}
   catch(e){ if(e.name==='AbortError')throw e;
-    throw new Error('网络请求失败（'+e.message+'）。请检查地址是否正确、网关是否允许跨域（CORS）。')}
+    throw new Error('网络请求失败（'+e.message+'）。可能是地址写错，或网关不允许浏览器直接访问（CORS）。')}
 }
 async function apiErr(r){
   let t=await r.text();
