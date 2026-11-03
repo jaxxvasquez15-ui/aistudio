@@ -157,6 +157,7 @@ details{margin-top:12px}summary{color:var(--mute);font-size:14px;padding:6px 2px
       <label>视频额外参数（JSON）</label><textarea data-cfg="videoExtra" placeholder='{"aspect_ratio":"16:9"}' style="min-height:56px"></textarea>
     </details>
 
+    <div class="hint" style="margin-top:14px">版本 v4 · 存储：<span id="stInfo"></span></div>
     <div class="card hint" style="line-height:1.7">
       <b style="color:var(--fg)">安装到主屏幕</b><br>
       用 Safari 打开本页 → 点底部「分享」→「添加到主屏幕」。<br>
@@ -201,7 +202,7 @@ function bindCfg(){
     const k=el.dataset.cfg; el.value=cfg[k]??'';
     el.addEventListener('input',()=>{cfg[k]=el.value;saveCfg();
       if(k==='base'&&/globalrouter\./.test(el.value)&&cfg.videoPreset!=='globalrouter'){const p={...PRESETS.globalrouter};delete p.base;Object.assign(cfg,p,{videoPreset:'globalrouter'});cfg.base=el.value;saveCfg();syncCfg()}
-      if(k==='videoPreset'&&PRESETS[el.value]){const p={...PRESETS[el.value]};if(!p.base||/globalrouter\./.test(cfg.base||''))delete p.base;Object.assign(cfg,p);saveCfg();syncCfg()}
+      if(k==='videoPreset'&&PRESETS[el.value]){const p={...PRESETS[el.value]};if(!p.base||(cfg.base||'').trim())delete p.base;Object.assign(cfg,p);saveCfg();syncCfg()}
     });
   });
 }
@@ -222,7 +223,7 @@ const H=json=>{const h={};if(cfg.key)h.Authorization='Bearer '+cfg.key.trim();if
 async function f(url,opt){
   try{return await fetch(url,opt)}
   catch(e){ if(e.name==='AbortError')throw e;
-    throw new Error('网络请求失败（'+e.message+'）。可能是地址写错，或网关不允许浏览器直接访问（CORS）。')}
+    throw new Error('网络请求失败（'+e.message+'）\n请求地址：'+url+'\n可能是地址写错、代理没更新，或网关不允许浏览器直接访问（CORS）。')}
 }
 async function apiErr(r){
   let t=await r.text();
@@ -352,12 +353,19 @@ async function sendChat(){
     if(!cfg.chatModel)throw new Error('请先在「设置」里填写对话模型');
     const extra=parseExtra(cfg.chatExtra);
     $('#chatIn').value='';$('#chatIn').style.height='';
-    msgs.push({role:'user',content:t});msgs.push({role:'assistant',content:''});renderChat();
+    msgs.push({role:'user',content:t});msgs.push({role:'assistant',content:''});renderChat();lsSet('ais.chat',JSON.stringify(msgs.slice(-60)));
     const history=msgs.slice(0,-1).map(({role,content})=>({role,content}));
     if(cfg.system.trim())history.unshift({role:'system',content:cfg.system.trim()});
     ctl=new AbortController();$('#chatSend').textContent='■';
-    const r=await f(u(cfg.chatPath),{method:'POST',headers:H(true),signal:ctl.signal,
-      body:JSON.stringify({model:cfg.chatModel,messages:history,stream:true,...extra})});
+    let r;
+    try{
+      r=await f(u(cfg.chatPath),{method:'POST',headers:H(true),signal:ctl.signal,
+        body:JSON.stringify({model:cfg.chatModel,messages:history,stream:true,...extra})});
+    }catch(e1){
+      if(e1.name==='AbortError')throw e1;
+      r=await f(u(cfg.chatPath),{method:'POST',headers:H(true),signal:ctl.signal,
+        body:JSON.stringify({model:cfg.chatModel,messages:history,stream:false,...extra})});
+    }
     if(!r.ok)throw await apiErr(r);
     const last=msgs[msgs.length-1],el=()=>box.lastElementChild;
     if((r.headers.get('content-type')||'').includes('event-stream')&&r.body){
@@ -370,7 +378,7 @@ async function sendChat(){
           if(!line.startsWith('data:'))continue;
           const data=line.slice(5).trim();if(data==='[DONE]')continue;
           try{const j=JSON.parse(data);const d=j.choices?.[0]?.delta?.content;
-            if(d){last.content+=d;el().innerHTML=md(last.content);box.scrollTop=box.scrollHeight}}catch{}
+            if(d){last.content+=d;el().innerHTML=md(last.content);box.scrollTop=box.scrollHeight;if(last.content.length%200<d.length)lsSet('ais.chat',JSON.stringify(msgs.slice(-60)))}}catch{}
         }
       }
     }else{
@@ -572,7 +580,10 @@ $('#vidGo').onclick=async e=>{
 };
 
 /* ---------- 启动 ---------- */
-bindCfg();renderChat();renderJobs();showVidInfo();
+bindCfg();renderChat();
+try{localStorage.setItem('ais.t','1');$('#stInfo').textContent='正常';}catch{$('#stInfo').textContent='不可用（请关闭无痕模式）'}
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+renderJobs();showVidInfo();
 if(Array.isArray(cfg.models))fillModels(cfg.models,cfg.vmodels||[]);
 jobs.filter(j=>!j.failed).forEach(poll);
 if(!cfg.key)show('set');
