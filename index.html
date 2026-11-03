@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Studio">
+<meta name="theme-color" content="#0b0b10">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>AI Studio</title>
+<style>
+:root{--bg:#0b0b10;--card:#16161d;--card2:#1f1f29;--fg:#f2f2f7;--mute:#8e8e9a;--line:#2a2a35;--acc:#7c5cff;--acc2:#4cc9f0;--bad:#ff5d6c;--ok:#34d399;--tab:64px}
+@media(prefers-color-scheme:light){:root{--bg:#f4f4f8;--card:#fff;--card2:#ececf2;--fg:#15151b;--mute:#6b6b78;--line:#dcdce4;--acc:#6a45ff}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;overscroll-behavior:none}
+body{position:fixed;inset:0;display:flex;flex-direction:column}
+.page{display:none;flex:1;min-height:0;flex-direction:column;padding-top:env(safe-area-inset-top)}
+.page.on{display:flex}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 20px}
+header.top{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 6px}
+header.top h1{font-size:22px;margin:0;font-weight:700}
+.tabbar{display:flex;height:calc(var(--tab) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:color-mix(in srgb,var(--card) 92%,transparent);border-top:1px solid var(--line)}
+.tabbar button{flex:1;background:none;border:0;color:var(--mute);font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.tabbar button span{font-size:22px;line-height:1}
+.tabbar button.on{color:var(--acc)}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 2px 5px}
+input,select,textarea{width:100%;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;outline:none;appearance:none;-webkit-appearance:none}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+textarea{resize:none;min-height:96px}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+.btn{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;border:0;border-radius:14px;padding:13px 16px;font:inherit;font-weight:600;width:100%;margin-top:14px}
+.btn.sec{background:var(--card2);color:var(--fg)}
+.btn.sm{width:auto;padding:7px 12px;font-size:14px;margin:0;border-radius:10px}
+.btn:disabled{opacity:.5}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-top:14px}
+.card img,.card video{width:100%;border-radius:12px;display:block;background:#000}
+.acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.cap{font-size:13px;color:var(--mute);margin-top:8px;word-break:break-all}
+.err{color:var(--bad);font-size:14px;margin-top:10px;white-space:pre-wrap;word-break:break-all}
+.hint{color:var(--mute);font-size:13px}
+.bar{height:6px;background:var(--card2);border-radius:3px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0;transition:width .4s}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.grid .card{margin:0;padding:8px}
+.grid .cap{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+details{margin-top:12px}summary{color:var(--mute);font-size:14px;padding:6px 2px}
+/* chat */
+#msgs{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px}
+.msg{max-width:88%;padding:10px 13px;border-radius:18px;margin:8px 0;word-break:break-word;font-size:16px}
+.msg.user{background:linear-gradient(135deg,var(--acc),#5a7bff);color:#fff;margin-left:auto;border-bottom-right-radius:5px}
+.msg.assistant{background:var(--card);border:1px solid var(--line);border-bottom-left-radius:5px}
+.msg pre{background:#0008;color:#eee;padding:10px;border-radius:10px;overflow-x:auto;font-size:13px}
+.msg code{background:var(--card2);padding:1px 5px;border-radius:5px;font-size:.92em}.msg pre code{background:none;padding:0}
+.composer{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--line);align-items:flex-end}
+.composer textarea{min-height:44px;max-height:140px;padding:10px 12px;border-radius:20px}
+.composer button{width:44px;height:44px;border-radius:22px;border:0;background:var(--acc);color:#fff;font-size:20px;flex:none}
+.empty{text-align:center;color:var(--mute);margin-top:60px;font-size:14px;line-height:1.7}
+</style>
+</head>
+<body>
+
+<!-- 对话 -->
+<section class="page on" id="p-chat">
+  <header class="top"><h1>对话</h1><button class="btn sec sm" id="chatClear">清空</button></header>
+  <div id="msgs"></div>
+  <div class="composer"><textarea id="chatIn" rows="1" placeholder="发消息…"></textarea><button id="chatSend">↑</button></div>
+</section>
+
+<!-- 生图 -->
+<section class="page" id="p-image">
+  <header class="top"><h1>生图</h1></header>
+  <div class="scroll">
+    <textarea id="imgPrompt" placeholder="描述你想要的画面…"></textarea>
+    <div class="row">
+      <div><label>模型</label><input data-cfg="imageModel" list="dl-image" placeholder="点此选择/输入" autocapitalize="off" autocorrect="off"></div>
+      <div><label>尺寸 / 比例</label><input id="imgSize" list="dl-size" value="1:1" autocapitalize="off" placeholder="1:1 或 1024x1024"></div>
+    </div>
+    <div class="row">
+      <div><label>张数</label><select id="imgN"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+      <div><label>调用方式</label><select id="imgMode"><option value="sync">同步（直接返回）</option><option value="async">异步任务（慢/高清用）</option></select></div>
+    </div>
+    <button class="btn" id="imgGo">生成图片</button>
+    <div class="err" id="imgErr"></div>
+    <div id="imgOut"></div>
+  </div>
+</section>
+
+<!-- 生视频 -->
+<section class="page" id="p-video">
+  <header class="top"><h1>生视频</h1></header>
+  <div class="scroll">
+    <textarea id="vidPrompt" placeholder="描述视频内容、镜头、动作…"></textarea>
+    <div class="row">
+      <div><label>模型</label><input data-cfg="videoModel" list="dl-video" placeholder="点此选择/输入" autocapitalize="off" autocorrect="off"></div>
+      <div><label>时长（秒）</label><input id="vidSec" value="5" inputmode="numeric"></div>
+    </div>
+    <div class="hint" id="vidInfo" style="margin-top:6px"></div>
+    <div class="row">
+      <div><label>分辨率 / 比例</label><input id="vidSize" list="dl-vsize" value="720p 16:9" autocapitalize="off" placeholder="720p 16:9"></div>
+      <div><label>音频</label><select id="vidAudio"><option value="">默认</option><option value="1">生成音频</option><option value="0">不要音频</option></select></div>
+    </div>
+    <label>首帧图片 URL（可选，图生视频）</label>
+    <input id="vidImgUrl" placeholder="https://… 公网图片地址" inputmode="url" autocapitalize="off">
+    <div class="row" style="margin-top:8px"><div><label>或选择本地图片（仅 Sora/通用风格支持）</label><input type="file" id="vidImg" accept="image/*"></div>
+    </div>
+    <button class="btn" id="vidGo">提交视频任务</button>
+    <div class="err" id="vidErr"></div>
+    <div id="vidJobs"></div>
+    <div id="vidOut"></div>
+  </div>
+</section>
+
+<!-- 作品 -->
+<section class="page" id="p-gallery">
+  <header class="top"><h1>作品</h1></header>
+  <div class="scroll"><div class="grid" id="gal"></div><div class="empty" id="galEmpty" style="display:none">还没有作品<br>生成的图片和视频会保存在这台设备上</div></div>
+</section>
+
+<!-- 设置 -->
+<section class="page" id="p-set">
+  <header class="top"><h1>设置</h1></header>
+  <div class="scroll">
+    <label>Base URL（网关地址）</label>
+    <input data-cfg="base" placeholder="https://api.globalrouter.com" autocapitalize="off" autocorrect="off" inputmode="url">
+    <label>API Key</label>
+    <input data-cfg="key" type="password" placeholder="sk-..." autocapitalize="off" autocorrect="off">
+    <div class="hint" style="margin-top:6px">Key 只保存在这台 iPhone 的浏览器本地，只会发给你填的网关。</div>
+    <button class="btn sec" id="fetchModels">测试连接 / 获取模型列表</button>
+    <div class="hint" id="modelInfo" style="margin-top:8px"></div>
+
+    <label>对话模型</label>
+    <input data-cfg="chatModel" list="dl-chat" placeholder="如 gpt-4o / claude-sonnet / deepseek-chat" autocapitalize="off" autocorrect="off">
+    <label>系统提示词（可选）</label>
+    <textarea data-cfg="system" style="min-height:64px"></textarea>
+
+    <label>网关类型（选择后自动填好所有路径）</label>
+    <select data-cfg="videoPreset" id="preset">
+      <option value="globalrouter">GlobalRouter（/api/v1，JSON）</option>
+      <option value="sora">OpenAI Sora 风格（/v1/videos，multipart）</option>
+      <option value="generic">通用 JSON 风格（/v1/video/generations）</option>
+      <option value="custom">完全自定义路径</option>
+    </select>
+
+    <details>
+      <summary>高级：接口路径与额外参数</summary>
+      <label>对话路径</label><input data-cfg="chatPath" autocapitalize="off">
+      <label>生图路径</label><input data-cfg="imagePath" autocapitalize="off">
+      <label>模型列表路径</label><input data-cfg="modelsPath" autocapitalize="off">
+      <label>视频模型列表路径（可空）</label><input data-cfg="videoModelsPath" autocapitalize="off">
+      <label>视频提交路径</label><input data-cfg="videoSubmit" autocapitalize="off">
+      <label>视频查询路径（{id} 为任务 ID）</label><input data-cfg="videoStatus" autocapitalize="off">
+      <label>视频内容下载路径（可空，结果里没有 URL 时使用）</label><input data-cfg="videoContent" autocapitalize="off">
+      <label>对话额外参数（JSON，会合并进请求）</label><textarea data-cfg="chatExtra" placeholder='{"temperature":0.7}' style="min-height:56px"></textarea>
+      <label>生图额外参数（JSON）</label><textarea data-cfg="imageExtra" placeholder='{"quality":"high"}' style="min-height:56px"></textarea>
+      <label>视频额外参数（JSON）</label><textarea data-cfg="videoExtra" placeholder='{"aspect_ratio":"16:9"}' style="min-height:56px"></textarea>
+    </details>
+
+    <div class="card hint" style="line-height:1.7">
+      <b style="color:var(--fg)">安装到主屏幕</b><br>
+      用 Safari 打开本页 → 点底部「分享」→「添加到主屏幕」。<br>
+      网关需允许浏览器跨域访问（CORS）。如果提示 “Load failed”，多半是地址写错或网关没开 CORS。
+    </div>
+  </div>
+</section>
+
+<nav class="tabbar">
+  <button data-t="chat" class="on"><span>💬</span>对话</button>
+  <button data-t="image"><span>🎨</span>生图</button>
+  <button data-t="video"><span>🎬</span>生视频</button>
+  <button data-t="gallery"><span>🗂</span>作品</button>
+  <button data-t="set"><span>⚙️</span>设置</button>
+</nav>
+
+<datalist id="dl-chat"></datalist><datalist id="dl-image"></datalist><datalist id="dl-video"></datalist>
+<datalist id="dl-size"><option value="1:1"><option value="16:9"><option value="9:16"><option value="4:3"><option value="3:4"><option value="auto"><option value="1024x1024"><option value="1024x1536"><option value="1536x1024"><option value="1792x1024"><option value="1024x1792"><option value="auto"></datalist>
+<datalist id="dl-vsize"><option value="720p 16:9"><option value="720p 9:16"><option value="1080p 16:9"><option value="1080p 9:16"><option value="480p 16:9"><option value="1280x720"><option value="720x1280"><option value="1920x1080"><option value="1080x1920"><option value="1024x1792"><option value="1792x1024"></datalist>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const lsGet=k=>{try{return localStorage.getItem(k)}catch{return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch{}};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- 配置 ---------- */
+const PRESETS={
+  globalrouter:{base:'https://api.globalrouter.com',chatPath:'/api/v1/chat/completions',imagePath:'/api/v1/images',modelsPath:'/api/v1/models',videoModelsPath:'/api/v1/videos/models',videoSubmit:'/api/v1/videos',videoStatus:'/api/v1/videos/{id}',videoContent:'/api/v1/videos/{id}/content'},
+  sora:{chatPath:'/v1/chat/completions',imagePath:'/v1/images/generations',modelsPath:'/v1/models',videoModelsPath:'',videoSubmit:'/v1/videos',videoStatus:'/v1/videos/{id}',videoContent:'/v1/videos/{id}/content'},
+  generic:{chatPath:'/v1/chat/completions',imagePath:'/v1/images/generations',modelsPath:'/v1/models',videoModelsPath:'',videoSubmit:'/v1/video/generations',videoStatus:'/v1/video/generations/{id}',videoContent:''}
+};
+const DEF={key:'',chatModel:'',imageModel:'',videoModel:'',system:'',
+  videoPreset:'globalrouter',...PRESETS.globalrouter,chatExtra:'',imageExtra:'',videoExtra:'',models:null};
+let cfg={...DEF};
+try{cfg={...DEF,...JSON.parse(lsGet('ais.cfg')||'{}')}}catch{}
+const saveCfg=()=>lsSet('ais.cfg',JSON.stringify(cfg));
+
+function bindCfg(){
+  $$('[data-cfg]').forEach(el=>{
+    const k=el.dataset.cfg; el.value=cfg[k]??'';
+    el.addEventListener('input',()=>{cfg[k]=el.value;saveCfg();
+      if(k==='videoPreset'&&PRESETS[el.value]){const p={...PRESETS[el.value]};if(!p.base)delete p.base;Object.assign(cfg,p);saveCfg();syncCfg()}
+    });
+  });
+}
+function syncCfg(){$$('[data-cfg]').forEach(el=>{el.value=cfg[el.dataset.cfg]??''})}
+
+/* ---------- 网络 ---------- */
+function u(p,id){
+  let b=(cfg.base||'').trim().replace(/\/+$/,'');
+  if(!b) throw new Error('请先到「设置」填写 Base URL 和 API Key');
+  p=(p||'').replace('{id}',encodeURIComponent(id||''));
+  if(/^https?:\/\//.test(p)) return p;
+  if(/\/api\/v1$/.test(b)&&p.startsWith('/api/v1')) p=p.slice(7);
+  else if(/\/v1$/.test(b)&&p.startsWith('/v1')) p=p.slice(3);
+  if(!p.startsWith('/')) p='/'+p;
+  return b+p;
+}
+const H=json=>{const h={};if(cfg.key)h.Authorization='Bearer '+cfg.key.trim();if(json)h['Content-Type']='application/json';return h};
+async function f(url,opt){
+  try{return await fetch(url,opt)}
+  catch(e){ if(e.name==='AbortError')throw e;
+    throw new Error('网络请求失败（'+e.message+'）。请检查地址是否正确、网关是否允许跨域（CORS）。')}
+}
+async function apiErr(r){
+  let t=await r.text();
+  try{const j=JSON.parse(t);t=j.error?.message||j.message||j.detail||(typeof j.error==='string'?j.error:t)}catch{}
+  return new Error(r.status+' '+String(t).slice(0,500));
+}
+function parseExtra(s){
+  s=(s||'').trim(); if(!s) return {};
+  try{const o=JSON.parse(s);if(o&&typeof o==='object')return o}catch(e){throw new Error('额外参数不是合法 JSON：'+e.message)}
+  throw new Error('额外参数必须是 JSON 对象');
+}
+const pick=(o,path)=>{let c=o;for(const k of path.split(/[.\[\]]+/).filter(Boolean)){if(c==null)return undefined;c=c[k]}return c};
+const pickAny=(o,ps)=>{for(const p of ps){const v=pick(o,p);if(v!==undefined&&v!==null&&v!=='')return v}};
+
+/* ---------- Tab ---------- */
+function show(t){
+  $$('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+t));
+  $$('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  if(t==='gallery')renderGallery();
+}
+$$('.tabbar button').forEach(b=>b.onclick=()=>show(b.dataset.t));
+
+/* ---------- IndexedDB 作品库 ---------- */
+let _db;
+function db(){return _db||(_db=new Promise((res,rej)=>{
+  const q=indexedDB.open('aistudio',1);
+  q.onupgradeneeded=()=>q.result.createObjectStore('items',{keyPath:'id'});
+  q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);
+}))}
+async function idb(mode,fn){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction('items',mode);const r=fn(tx.objectStore('items'));tx.oncomplete=()=>res(r.result);tx.onerror=()=>rej(tx.error)})}
+const putItem=it=>idb('readwrite',s=>s.put(it)).catch(()=>{});
+const delItem=id=>idb('readwrite',s=>s.delete(id)).catch(()=>{});
+const allItems=()=>idb('readonly',s=>s.getAll()).then(a=>(a||[]).sort((x,y)=>y.ts-x.ts)).catch(()=>[]);
+
+/* ---------- 作品卡片 ---------- */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function itemSrc(it){return it.blob?URL.createObjectURL(it.blob):it.url}
+async function shareItem(it){
+  try{
+    let blob=it.blob; if(!blob) blob=await (await fetch(it.url)).blob();
+    const isV=it.type==='video';
+    const type=blob.type&&blob.type.startsWith(isV?'video/':'image/')?blob.type:(isV?'video/mp4':'image/png');
+    const file=new File([blob],'ai-'+it.id+'.'+(isV?'mp4':(type.split('/')[1]||'png')),{type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});return}
+  }catch(e){if(e.name==='AbortError')return}
+  const src=itemSrc(it); window.open(src,'_blank');
+}
+function card(it,inGallery){
+  const d=document.createElement('div');d.className='card';
+  const src=itemSrc(it);
+  d.innerHTML=(it.type==='video'
+    ?`<video src="${esc(src)}" controls playsinline preload="metadata"></video>`
+    :`<img src="${esc(src)}" loading="lazy">`)+
+    `<div class="cap">${esc(it.prompt||'')}</div>`+
+    `<div class="acts"><button class="btn sm" data-a="share">保存/分享</button>`+
+    `<button class="btn sm sec" data-a="copy">复制提示词</button>`+
+    (inGallery?`<button class="btn sm sec" data-a="del">删除</button>`:'')+`</div>`;
+  d.querySelector('[data-a=share]').onclick=()=>shareItem(it);
+  d.querySelector('[data-a=copy]').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(it.prompt||'').catch(()=>{})};
+  const dl=d.querySelector('[data-a=del]');
+  if(dl)dl.onclick=async()=>{await delItem(it.id);d.remove();if(!$('#gal').children.length)$('#galEmpty').style.display='block'};
+  return d;
+}
+async function renderGallery(){
+  const items=await allItems(), g=$('#gal'); g.innerHTML='';
+  $('#galEmpty').style.display=items.length?'none':'block';
+  items.forEach(it=>g.appendChild(card(it,true)));
+}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function b64Blob(b64,type='image/png'){const bin=atob(b64),a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type})}
+
+/* ---------- 模型列表 ---------- */
+const RV=/video|dreamina|sora|veo|kling|runway|hailuo|minimax-video|wan|seedance|pika|luma|vidu|cogvideo|hunyuan-video|pixverse/i;
+const RI=/image|dola|jimeng|seedream|dall|flux|midjourney|\bmj\b|stable|sdxl|imagen|seedream|nano-?banana|gpt-image|recraft|ideogram|cogview/i;
+function fillModels(list,vids=[]){
+  const c=[],i=[],v=[...vids];
+  list.forEach(m=>{if(vids.includes(m))return;(RV.test(m)?v:RI.test(m)?i:c).push(m)});
+  const set=(id,a)=>{$(id).innerHTML=a.sort().map(x=>`<option value="${esc(x)}">`).join('')};
+  set('#dl-chat',c);set('#dl-image',i.length?i:list.slice());set('#dl-video',v.length?v:list.slice());
+  $('#modelInfo').textContent=`已获取 ${list.length} 个模型（对话 ${c.length} / 图片 ${i.length} / 视频 ${v.length}），点各处模型输入框即可选择。`;
+}
+async function loadModels(){
+  const r=await f(u(cfg.modelsPath),{headers:H(false)});
+  if(!r.ok)throw await apiErr(r);
+  const j=await r.json();
+  const list=(j.data||j.models||j).map?.(m=>typeof m==='string'?m:m.id||m.name).filter(Boolean)||[];
+  let vids=[];
+  if(cfg.videoModelsPath){try{const r2=await f(u(cfg.videoModelsPath),{headers:H(false)});
+    if(r2.ok){const j2=await r2.json();vids=(j2.data||[]).map(m=>m.id).filter(Boolean);cfg.vinfo={};(j2.data||[]).forEach(m=>{cfg.vinfo[m.id]={d:m.supported_durations,r:m.supported_resolutions,a:m.supported_aspect_ratios,au:m.generate_audio,fr:m.supported_frame_images}})}}catch{}}
+  cfg.models=list;cfg.vmodels=vids;saveCfg();fillModels(list,vids);showVidInfo();
+}
+$('#fetchModels').onclick=async e=>{
+  const b=e.target;b.disabled=true;$('#modelInfo').textContent='连接中…';
+  try{await loadModels()}catch(err){$('#modelInfo').innerHTML='<span class="err">'+esc(err.message)+'</span>'}
+  b.disabled=false;
+};
+
+function showVidInfo(){
+  const m=(cfg.vinfo||{})[document.querySelector('[data-cfg=videoModel]').value],el=$('#vidInfo');
+  if(!m){el.textContent='';return}
+  const x=[];if(m.d?.length)x.push('时长 '+m.d.join('/')+' 秒');if(m.r?.length)x.push('分辨率 '+m.r.join('/'));
+  if(m.a?.length)x.push('比例 '+m.a.join('/'));if(m.au)x.push('支持音频');if(m.fr?.length)x.push('帧图 '+m.fr.join('/'));
+  el.textContent='该模型支持：'+x.join(' · ');
+}
+document.querySelector('[data-cfg=videoModel]').addEventListener('input',showVidInfo);
+document.querySelector('[data-cfg=videoModel]').addEventListener('change',showVidInfo);
+/* ---------- 对话 ---------- */
+let msgs=[];try{msgs=JSON.parse(lsGet('ais.chat')||'[]')}catch{}
+let ctl=null;
+function md(s){
+  return s.split('```').map((p,i)=>i%2
+    ?'<pre><code>'+esc(p.replace(/^[\w+-]*\n/,''))+'</code></pre>'
+    :esc(p).replace(/`([^`\n]+)`/g,'<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>')).join('');
+}
+function renderChat(){
+  const box=$('#msgs');
+  if(!msgs.length){box.innerHTML='<div class="empty">在「设置」填好网关地址和 Key<br>然后从这里开始对话</div>';return}
+  box.innerHTML='';
+  msgs.forEach(m=>{const d=document.createElement('div');d.className='msg '+m.role;d.innerHTML=md(m.content||'…');box.appendChild(d)});
+  box.scrollTop=box.scrollHeight;
+}
+async function sendChat(){
+  if(ctl){ctl.abort();return}
+  const t=$('#chatIn').value.trim();if(!t)return;
+  const box=$('#msgs');
+  try{
+    if(!cfg.chatModel)throw new Error('请先在「设置」里填写对话模型');
+    const extra=parseExtra(cfg.chatExtra);
+    $('#chatIn').value='';$('#chatIn').style.height='';
+    msgs.push({role:'user',content:t});msgs.push({role:'assistant',content:''});renderChat();
+    const history=msgs.slice(0,-1).map(({role,content})=>({role,content}));
+    if(cfg.system.trim())history.unshift({role:'system',content:cfg.system.trim()});
+    ctl=new AbortController();$('#chatSend').textContent='■';
+    const r=await f(u(cfg.chatPath),{method:'POST',headers:H(true),signal:ctl.signal,
+      body:JSON.stringify({model:cfg.chatModel,messages:history,stream:true,...extra})});
+    if(!r.ok)throw await apiErr(r);
+    const last=msgs[msgs.length-1],el=()=>box.lastElementChild;
+    if((r.headers.get('content-type')||'').includes('event-stream')&&r.body){
+      const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
+      for(;;){
+        const {done,value}=await rd.read();if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        let i;while((i=buf.indexOf('\n'))>=0){
+          const line=buf.slice(0,i).trim();buf=buf.slice(i+1);
+          if(!line.startsWith('data:'))continue;
+          const data=line.slice(5).trim();if(data==='[DONE]')continue;
+          try{const j=JSON.parse(data);const d=j.choices?.[0]?.delta?.content;
+            if(d){last.content+=d;el().innerHTML=md(last.content);box.scrollTop=box.scrollHeight}}catch{}
+        }
+      }
+    }else{
+      const j=await r.json();last.content=j.choices?.[0]?.message?.content||JSON.stringify(j);
+    }
+    if(!last.content)last.content='（空回复）';
+  }catch(e){
+    const last=msgs[msgs.length-1];
+    if(last&&last.role==='assistant'){
+      if(e.name==='AbortError'){if(!last.content)last.content='（已停止）'}
+      else last.content=(last.content?last.content+'\n\n':'')+'⚠️ '+e.message;
+    }else alert_(e.message);
+  }finally{
+    ctl=null;$('#chatSend').textContent='↑';renderChat();lsSet('ais.chat',JSON.stringify(msgs.slice(-60)));
+  }
+}
+function alert_(m){const d=document.createElement('div');d.className='msg assistant';d.textContent='⚠️ '+m;$('#msgs').appendChild(d)}
+$('#chatSend').onclick=sendChat;
+$('#chatClear').onclick=()=>{msgs=[];lsSet('ais.chat','[]');renderChat()};
+$('#chatIn').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,140)+'px'});
+
+/* ---------- 生图 ---------- */
+function ratioOrSize(v){v=(v||'').trim();if(!v||v==='auto')return v==='auto'?{aspect_ratio:'auto'}:{};
+  return /^\d+:\d+$/.test(v)?{aspect_ratio:v}:{size:v}}
+$('#imgGo').onclick=async e=>{
+  const b=e.target,err=$('#imgErr');err.textContent='';
+  const prompt=$('#imgPrompt').value.trim();
+  try{
+    if(!prompt)throw new Error('先写点提示词');
+    if(!cfg.imageModel)throw new Error('请选择或填写生图模型');
+    const extra=parseExtra(cfg.imageExtra);
+    b.disabled=true;b.textContent='生成中…';
+    const body={model:cfg.imageModel,prompt,n:+$('#imgN').value,...ratioOrSize($('#imgSize').value),...extra};
+    let j,arr;
+    if($('#imgMode').value==='async'){
+      const tp=cfg.videoPreset==='globalrouter'?'/api/v1/image-tasks':null;
+      if(!tp)throw new Error('异步图片任务仅 GlobalRouter 支持');
+      const r=await f(u(tp),{method:'POST',headers:H(true),body:JSON.stringify(body)});
+      if(!r.ok)throw await apiErr(r);
+      j=await r.json();const tid=j.id;if(!tid)throw new Error('没拿到任务 ID：'+JSON.stringify(j).slice(0,300));
+      const t0=Date.now();let bad=0;
+      for(;;){
+        b.textContent='排队/生成中… '+Math.round((Date.now()-t0)/1000)+'s';
+        await sleep(3000);
+        try{
+          const rr=await f(u(tp+'/{id}',tid),{headers:H(false)});
+          if(!rr.ok)throw await apiErr(rr);
+          j=await rr.json();bad=0;
+        }catch(e){if(++bad>=5)throw e;continue}
+        const st=String(j.status||'').toLowerCase();
+        if(st==='completed')break;
+        if(st==='failed'||st==='expired')throw new Error(typeof j.error==='string'?j.error:(j.error?.message||JSON.stringify(j.error||j).slice(0,300)));
+        if(Date.now()-t0>15*60e3)throw new Error('等待超过 15 分钟');
+      }
+      arr=j.data||[];
+    }else{
+      const r=await f(u(cfg.imagePath),{method:'POST',headers:H(true),body:JSON.stringify(body)});
+      if(!r.ok)throw await apiErr(r);
+      j=await r.json();arr=j.data||j.images||[];
+    }
+    if(!arr.length)throw new Error('接口没有返回图片：'+JSON.stringify(j).slice(0,300));
+    for(const d of arr){
+      const it={id:uid(),type:'image',prompt,model:cfg.imageModel,ts:Date.now()};
+      const b64=d.b64_json||d.b64||d.base64;
+      if(b64)it.blob=b64Blob(b64.replace(/^data:[^,]+,/,''));
+      else{
+        const url=d.url||d.image_url||(typeof d==='string'?d:'');
+        if(!url)continue;
+        try{const rr=await fetch(url);if(rr.ok)it.blob=await rr.blob()}catch{}
+        if(!it.blob)it.url=url;
+      }
+      await putItem(it);$('#imgOut').prepend(card(it,false));
+    }
+  }catch(ex){err.textContent=ex.message}
+  b.disabled=false;b.textContent='生成图片';
+};
+
+/* ---------- 生视频 ---------- */
+let jobs=[];try{jobs=JSON.parse(lsGet('ais.jobs')||'[]')}catch{}
+const saveJobs=()=>lsSet('ais.jobs',JSON.stringify(jobs));
+const polling=new Set();
+const DONE=['completed','complete','succeeded','success','done','finished','ready'];
+const sameOrigin=url=>{try{return new URL(url).origin===new URL(u('/')).origin}catch{return false}};
+const FAIL=['failed','failure','error','cancelled','canceled','fail','rejected','expired'];
+function renderJobs(){
+  $('#vidJobs').innerHTML='';
+  jobs.forEach(j=>{
+    const d=document.createElement('div');d.className='card';
+    const p=Math.max(0,Math.min(100,+j.progress||0));
+    d.innerHTML=`<div><b>${j.failed?'❌ 失败':'⏳ 生成中'}</b> <span class="hint">${esc(j.status||'queued')}${p?` · ${p}%`:''}</span></div>`+
+      `<div class="cap">${esc(j.prompt)}</div>`+(j.failed?'':`<div class="bar"><i style="width:${p}%"></i></div>`)+
+      (j.error?`<div class="err">${esc(j.error)}</div>`:'')+
+      `<div class="acts"><button class="btn sm sec">${j.failed?'移除':'取消跟踪'}</button></div>`;
+    d.querySelector('button').onclick=()=>{jobs=jobs.filter(x=>x!==j);saveJobs();renderJobs()};
+    $('#vidJobs').appendChild(d);
+  });
+}
+function findUrl(o){
+  const direct=pickAny(o,['video_url','url','data.video_url','data.url','output.video_url','output.url','output[0]','output','result.video_url','result.url','result','content_url','data[0].url','data[0].video_url','data.output','videos[0].url','generations[0].url','data.result.url','data.result.video_url','unsigned_urls[0]']);
+  if(typeof direct==='string'&&/^https?:\/\//.test(direct))return direct;
+  let found='';
+  (function walk(x,k){
+    if(found||x==null)return;
+    if(typeof x==='string'){if(/^https?:\/\//.test(x)&&(/url|video|output|result/i.test(k||'')||/\.(mp4|mov|webm)(\?|$)/i.test(x)))found=x;return}
+    if(typeof x==='object')for(const kk in x)walk(x[kk],kk);
+  })(o,'');
+  return found;
+}
+async function finishVideo(job,res){
+  let url=findUrl(res),blob=null;
+  if(url){try{const r=await fetch(url,sameOrigin(url)?{headers:H(false)}:{});if(r.ok)blob=await r.blob()}catch{}
+    if(!blob&&cfg.videoContent&&sameOrigin(url)){const r=await f(u(cfg.videoContent,job.id),{headers:H(false)});if(r.ok)blob=await r.blob()}}
+  else if(cfg.videoContent){
+    const r=await f(u(cfg.videoContent,job.id),{headers:H(false)});
+    if(!r.ok)throw await apiErr(r);blob=await r.blob();
+  }
+  if(!blob&&!url)throw new Error('任务已完成，但没找到视频地址。接口返回：'+JSON.stringify(res).slice(0,400));
+  if(blob&&!blob.type.startsWith('video/'))blob=new Blob([blob],{type:'video/mp4'});
+  const it={id:uid(),type:'video',prompt:job.prompt,model:job.model,ts:Date.now()};
+  if(blob)it.blob=blob;else it.url=url;
+  await putItem(it);
+  jobs=jobs.filter(x=>x!==job);saveJobs();renderJobs();
+  $('#vidOut').prepend(card(it,false));
+}
+async function poll(job){
+  if(polling.has(job.id))return;polling.add(job.id);let errs=0;
+  try{
+    for(;;){
+      await sleep(5000);
+      if(!jobs.includes(job))return;
+      try{
+        const r=await f(u(cfg.videoStatus,job.id),{headers:H(false)});
+        if(!r.ok)throw await apiErr(r);
+        const j=await r.json();errs=0;
+        const st=String(pickAny(j,['status','state','data.status','data.state','task_status','data.task_status'])||'').toLowerCase();
+        const pg=pickAny(j,['progress','data.progress','percent','data.percent']);
+        job.status=st||job.status;if(pg!==undefined)job.progress=parseFloat(pg)||0;
+        saveJobs();renderJobs();
+        if(FAIL.includes(st))throw Object.assign(new Error(String(pickAny(j,['error.message','error','message','fail_reason','data.fail_reason','data.error'])||JSON.stringify(j).slice(0,300))),{fatal:true});
+        if(DONE.includes(st)||(!st&&findUrl(j))){await finishVideo(job,j);return}
+      }catch(e){
+        if(e.fatal||++errs>=6)throw e;
+      }
+      if(Date.now()-job.ts>40*60e3)throw new Error('等待超过 40 分钟，已停止跟踪');
+    }
+  }catch(e){job.failed=true;job.error=e.message;saveJobs();renderJobs()}
+  finally{polling.delete(job.id)}
+}
+const fileToDataURL=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)});
+$('#vidGo').onclick=async e=>{
+  const b=e.target,err=$('#vidErr');err.textContent='';
+  const prompt=$('#vidPrompt').value.trim();
+  try{
+    if(!prompt)throw new Error('先写点提示词');
+    if(!cfg.videoModel)throw new Error('请选择或填写视频模型');
+    const extra=parseExtra(cfg.videoExtra);
+    const sec=$('#vidSec').value.trim(),size=$('#vidSize').value.trim(),file=$('#vidImg').files[0];
+    if(cfg.videoPreset==='sora'&&/p$/i.test(size.split(/\s+/)[0]||''))throw new Error('Sora 风格请填 宽x高，如 1280x720');
+    b.disabled=true;b.textContent='提交中…';
+    let r;
+    if(cfg.videoPreset==='sora'){
+      const fd=new FormData();fd.append('model',cfg.videoModel);fd.append('prompt',prompt);
+      if(sec)fd.append('seconds',sec);if(size)fd.append('size',size);
+      if(file)fd.append('input_reference',file);
+      for(const k in extra)fd.append(k,typeof extra[k]==='object'?JSON.stringify(extra[k]):extra[k]);
+      r=await f(u(cfg.videoSubmit),{method:'POST',headers:H(false),body:fd});
+    }else{
+      const body={model:cfg.videoModel,prompt,...(sec?{duration:+sec||sec}:{})};
+      for(const t of size.split(/[\s,]+/).filter(Boolean)){
+        if(/^\d+:\d+$/.test(t))body.aspect_ratio=t;
+        else if(/^\d+x\d+$/i.test(t))body.size=t;
+        else body.resolution=t;
+      }
+      if(body.size){delete body.aspect_ratio;delete body.resolution}
+      const au=$('#vidAudio').value;if(au)body.generate_audio=au==='1';
+      const iu=$('#vidImgUrl').value.trim();
+      if(cfg.videoPreset==='globalrouter'){
+        if(file)throw new Error('GlobalRouter 的图生视频需要公网图片 URL，请填上面的「首帧图片 URL」。');
+        if(iu)body.frame_images=[{type:'image_url',image_url:{url:iu},frame_type:'first_frame'}];
+      }else{
+        if(file)body.image=await fileToDataURL(file);else if(iu)body.image=iu;
+        
+      }
+      r=await f(u(cfg.videoSubmit),{method:'POST',headers:H(true),body:JSON.stringify({...body,...extra})});
+    }
+    if(!r.ok)throw await apiErr(r);
+    const j=await r.json();
+    const id=pickAny(j,['id','task_id','data.id','data.task_id','request_id','video_id','data.request_id']);
+    const job={id:String(id||uid()),prompt,model:cfg.videoModel,ts:Date.now(),status:String(pickAny(j,['status','data.status'])||'queued'),progress:0};
+    const st=job.status.toLowerCase();
+    if(!id){
+      if(findUrl(j)){jobs.push(job);await finishVideo(job,j);return}
+      throw new Error('没有从返回里找到任务 ID：'+JSON.stringify(j).slice(0,300));
+    }
+    jobs.push(job);saveJobs();renderJobs();
+    if(DONE.includes(st)&&findUrl(j)){await finishVideo(job,j)}else poll(job);
+  }catch(ex){err.textContent=ex.message}
+  b.disabled=false;b.textContent='提交视频任务';
+};
+
+/* ---------- 启动 ---------- */
+bindCfg();renderChat();renderJobs();showVidInfo();
+if(Array.isArray(cfg.models))fillModels(cfg.models,cfg.vmodels||[]);
+jobs.filter(j=>!j.failed).forEach(poll);
+if(!cfg.key)show('set');
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
